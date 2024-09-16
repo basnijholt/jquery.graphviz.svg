@@ -20,17 +20,10 @@
  * SOFTWARE.
  */
 
-import $ from 'jquery';
-
-// Cross Browser starts/endsWith support
-// =====================================
-String.prototype.startsWith = function (prefix) {
-  return this.indexOf(prefix) == 0;
-};
-
-String.prototype.endsWith = function (suffix) {
-  return this.indexOf(suffix, this.length - suffix.length) !== -1;
-};
+// Import dependencies
+import $ from "https://esm.sh/jquery@3.6.1";
+import "https://esm.sh/jquery-mousewheel@3.1.13";
+import "https://esm.sh/jquery-color@2.2.0";
 
 // GRAPHVIZSVG PUBLIC CLASS DEFINITION
 // ===================================
@@ -62,7 +55,7 @@ class GraphvizSvg {
           animation: false,
           viewport: null
         }).on('hide.bs.tooltip', function () {
-          // keep them visible even if you acidentally mouse over
+          // keep them visible even if you accidentally mouse over
           if ($a.attr('data-tooltip-keepvisible')) {
             return false;
           }
@@ -92,7 +85,7 @@ class GraphvizSvg {
         return col;
       },
       unselected: function (col, bg) {
-        return jQuery.Color(col).transition(bg, 0.9);
+        return $.Color(col).transition(bg, 0.9);
       }
     },
     ready: null
@@ -181,8 +174,8 @@ class GraphvizSvg {
     const options = this.options;
 
     // save the colors of the paths, ellipses and polygons
-    $el.find('polygon, ellipse, path').each(function () {
-      const $this = $(this);
+    $el.find('polygon, ellipse, path').each((_idx, pathEl) => {
+      const $this = $(pathEl);
       // save original colors
       $this.data('graphviz.svg.color', {
         fill: $this.attr('fill'),
@@ -195,7 +188,7 @@ class GraphvizSvg {
       }
     });
 
-    // save the node name and check if theres a comment above; save it
+    // save the node name and check if there's a comment above; save it
     const $title = $el.children('title');
     if ($title[0]) {
       // remove any compass points:
@@ -207,7 +200,7 @@ class GraphvizSvg {
       } else {
         this._edgesByName[title] = $el[0];
       }
-      // without a title we can't tell if its a user comment or not
+      // check previous sibling for comment
       let previousSibling = $el[0].previousSibling;
       while (previousSibling && previousSibling.nodeType != 8) {
         previousSibling = previousSibling.previousSibling;
@@ -242,7 +235,7 @@ class GraphvizSvg {
     const $svg = this.$svg;
     this.zoom = { width: $svg.attr('width'), height: $svg.attr('height'), percentage: null };
     this.scaleView(100.0);
-    $element.on('mousewheel', function (evt) {
+    $element.on('mousewheel', (evt) => {
       if (evt.shiftKey) {
         let percentage = this.zoom.percentage;
         percentage -= evt.deltaY * evt.deltaFactor;
@@ -264,7 +257,7 @@ class GraphvizSvg {
         // scroll so pointer is still in same place
         $element.scrollLeft((rx * $svg.width()) + 0.5 - px);
         $element.scrollTop((ry * $svg.height()) + 0.5 - py);
-        return false; // stop propogation
+        return false; // stop propagation
       }
     });
   }
@@ -356,8 +349,8 @@ class GraphvizSvg {
 
   colorElement($el, getColor) {
     const bg = this.$element.css('background');
-    $el.find('polygon, ellipse, path').each(function () {
-      const $this = $(this);
+    $el.find('polygon, ellipse, path').each((_idx, elemEl) => {
+      const $this = $(elemEl);
       const color = $this.data('graphviz.svg.color');
       if (color.fill && $this.prop('tagName') != 'path') {
         $this.attr('fill', getColor(color.fill, bg)); // don't set  fill if it's a path
@@ -369,8 +362,8 @@ class GraphvizSvg {
   }
 
   restoreElement($el) {
-    $el.find('polygon, ellipse, path').each(function () {
-      const $this = $(this);
+    $el.find('polygon, ellipse, path').each((_idx, elemEl) => {
+      const $this = $(elemEl);
       const color = $this.data('graphviz.svg.color');
       if (color.fill) {
         $this.attr('fill', color.fill); // don't set  fill if it's a path
@@ -433,12 +426,12 @@ class GraphvizSvg {
 
   tooltip($elements, show) {
     const options = this.options;
-    $elements.each(function () {
-      $(this).children('a[title]').each(function () {
+    $elements.each((_idx, elemEl) => {
+      $(elemEl).children('a[title]').each((_idx, aElem) => {
         if (show) {
-          options.tooltips.show.call(this);
+          options.tooltips.show.call(aElem);
         } else {
-          options.tooltips.hide.call(this);
+          options.tooltips.hide.call(aElem);
         }
       });
     });
@@ -461,19 +454,19 @@ class GraphvizSvg {
     const $everything = this.$nodes.add(this.$edges);
     if ($nodesEdges && $nodesEdges.length > 0) {
       // create set of all other elements and dim them
-      $everything.not($nodesEdges).each((_idx, elem) => {
-        this.colorElement($(elem), options.highlight.unselected);
-        this.tooltip($(elem));
+      $everything.not($nodesEdges).each((_idx, elemEl) => {
+        this.colorElement($(elemEl), options.highlight.unselected);
+        this.tooltip($(elemEl));
       });
-      $nodesEdges.each((_, elem) => {
-        this.colorElement($(elem), options.highlight.selected);
+      $nodesEdges.each((_, elemEl) => {
+        this.colorElement($(elemEl), options.highlight.selected);
       });
       if (tooltips) {
         this.tooltip($nodesEdges, true);
       }
     } else {
-      $everything.each((_idx, elem) => {
-        this.restoreElement($(elem));
+      $everything.each((_idx, elemEl) => {
+        this.restoreElement($(elemEl));
       });
       this.tooltip($everything);
     }
@@ -486,8 +479,10 @@ class GraphvizSvg {
   }
 }
 
-// Export the module as default
-export default function Plugin(option) {
+// Export the class and the plugin function
+export { GraphvizSvg };
+
+export function Plugin(option) {
   this.each(function () {
     const $this = $(this);
     let data = $this.data('graphviz.svg');
