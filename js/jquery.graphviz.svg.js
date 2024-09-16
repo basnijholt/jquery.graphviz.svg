@@ -20,515 +20,485 @@
  * SOFTWARE.
  */
 
+import $ from 'jquery';
 
- +function ($) {
-  'use strict'
+// Cross Browser starts/endsWith support
+// =====================================
+String.prototype.startsWith = function (prefix) {
+  return this.indexOf(prefix) == 0;
+};
 
-  // Cross Browser starts/endsWith support
-  // =====================================
-  String.prototype.startsWith = function(prefix) {
-    return this.indexOf(prefix) == 0;
-  };
+String.prototype.endsWith = function (suffix) {
+  return this.indexOf(suffix, this.length - suffix.length) !== -1;
+};
 
-  String.prototype.endsWith = function(suffix) {
-    return this.indexOf(suffix, this.length - suffix.length) !== -1;
-  };
+// GRAPHVIZSVG PUBLIC CLASS DEFINITION
+// ===================================
 
-  // GRAPHVIZSVG PUBLIC CLASS DEFINITION
-  // ===================================
+class GraphvizSvg {
+  constructor(element, options) {
+    this.type = null;
+    this.options = null;
+    this.enabled = null;
+    this.$element = null;
 
-  var GraphvizSvg = function (element, options) {
-    this.type       = null
-    this.options    = null
-    this.enabled    = null
-    this.$element   = null
-
-    this.init('graphviz.svg', element, options)
+    this.init('graphviz.svg', element, options);
   }
 
-  GraphvizSvg.VERSION  = '1.0.1'
+  static VERSION = '1.0.1';
 
-  GraphvizSvg.GVPT_2_PX = 32.5 // used to ease removal of extra space
+  static GVPT_2_PX = 32.5; // used to ease removal of extra space
 
-  GraphvizSvg.DEFAULTS = {
+  static DEFAULTS = {
     url: null,
     svg: null,
     shrink: '0.125pt',
     tooltips: {
       init: function ($graph) {
-        var $a = $(this)
+        const $a = $(this);
         $a.tooltip({
           container: $graph,
           placement: 'auto left',
           animation: false,
           viewport: null
-        }).on('hide.bs.tooltip', function() {
+        }).on('hide.bs.tooltip', function () {
           // keep them visible even if you acidentally mouse over
           if ($a.attr('data-tooltip-keepvisible')) {
-            return false
+            return false;
           }
-        })
+        });
       },
       show: function () {
-        var $a = $(this)
-        $a.attr('data-tooltip-keepvisible', true)
-        $a.tooltip('show')
+        const $a = $(this);
+        $a.attr('data-tooltip-keepvisible', true);
+        $a.tooltip('show');
       },
       hide: function () {
-        var $a = $(this)
-        $a.removeAttr('data-tooltip-keepvisible')
-        $a.tooltip('hide')
+        const $a = $(this);
+        $a.removeAttr('data-tooltip-keepvisible');
+        $a.tooltip('hide');
       },
       update: function () {
-        var $this = $(this)
+        const $this = $(this);
         if ($this.attr('data-tooltip-keepvisible')) {
-          $this.tooltip('show')
-          return
+          $this.tooltip('show');
+          return;
         }
       }
     },
     zoom: true,
     highlight: {
       selected: function (col, bg) {
-        return col
+        return col;
       },
       unselected: function (col, bg) {
-        return jQuery.Color(col).transition(bg, 0.9)
+        return jQuery.Color(col).transition(bg, 0.9);
       }
     },
     ready: null
-  }
+  };
 
-  GraphvizSvg.prototype.init = function (type, element, options) {
-    this.enabled   = true
-    this.type      = type
-    this.$element  = $(element)
-    this.options   = this.getOptions(options)
+  init(type, element, options) {
+    this.enabled = true;
+    this.type = type;
+    this.$element = $(element);
+    this.options = this.getOptions(options);
 
     if (options.url) {
-      var that = this
-      $.get(options.url, null, function(data) {
-        var svg = $("svg", data)
-        that.$element.html(document.adoptNode(svg[0]))
-        that.setup()
-      }, "xml")
+      $.get(options.url, null, (data) => {
+        const svg = $("svg", data);
+        this.$element.html(document.adoptNode(svg[0]));
+        this.setup();
+      }, "xml");
     } else {
       if (options.svg) {
-        this.$element.html(options.svg)
+        this.$element.html(options.svg);
       }
-      this.setup()
+      this.setup();
     }
   }
 
-  GraphvizSvg.prototype.getDefaults = function () {
-    return GraphvizSvg.DEFAULTS
+  getDefaults() {
+    return GraphvizSvg.DEFAULTS;
   }
 
-  GraphvizSvg.prototype.getOptions = function (options) {
-    options = $.extend({}, this.getDefaults(), this.$element.data(), options)
+  getOptions(options) {
+    options = $.extend({}, this.getDefaults(), this.$element.data(), options);
 
     if (options.shrink) {
       if (typeof options.shrink != 'object') {
         options.shrink = {
           x: options.shrink,
           y: options.shrink
-        }
+        };
       }
-      options.shrink.x = this.convertToPx(options.shrink.x)
-      options.shrink.y = this.convertToPx(options.shrink.y)
+      options.shrink.x = this.convertToPx(options.shrink.x);
+      options.shrink.y = this.convertToPx(options.shrink.y);
     }
-    return options
+    return options;
   }
 
-  GraphvizSvg.prototype.setup = function () {
-    var options = this.options
+  setup() {
+    const options = this.options;
 
     // save key elements in the graph for easy access
-    var $svg = $(this.$element.children('svg'))
-    var $graph = $svg.children('g:first')
-    this.$svg = $svg
-    this.$graph = $graph
-    this.$background = $graph.children('polygon:first') // might not exist
-    this.$nodes = $graph.children('.node')
-    this.$edges = $graph.children('.edge')
-    this._nodesByName = {}
-    this._edgesByName = {}
+    const $svg = $(this.$element.children('svg'));
+    const $graph = $svg.children('g:first');
+    this.$svg = $svg;
+    this.$graph = $graph;
+    this.$background = $graph.children('polygon:first'); // might not exist
+    this.$nodes = $graph.children('.node');
+    this.$edges = $graph.children('.edge');
+    this._nodesByName = {};
+    this._edgesByName = {};
 
     // add top level class and copy background color to element
-    this.$element.addClass('graphviz-svg')
+    this.$element.addClass('graphviz-svg');
     if (this.$background.length) {
-      this.$element.css('background', this.$background.attr('fill'))
+      this.$element.css('background', this.$background.attr('fill'));
     }
 
     // setup all the nodes and edges
-    var that = this
-    this.$nodes.each(function () { that.setupNodesEdges($(this), true) })
-    this.$edges.each(function () { that.setupNodesEdges($(this), false) })
+    this.$nodes.each((_idx, el) => { this.setupNodesEdges($(el), true); });
+    this.$edges.each((_idx, el) => { this.setupNodesEdges($(el), false); });
 
     // remove the graph title element
-    var $title = this.$graph.children('title')
-    this.$graph.attr('data-name', $title.text())
-    $title.remove()
+    const $title = this.$graph.children('title');
+    this.$graph.attr('data-name', $title.text());
+    $title.remove();
 
     if (options.zoom) {
-      this.setupZoom()
+      this.setupZoom();
     }
 
     // tell people we're done
     if (options.ready) {
-      options.ready.call(this)
+      options.ready.call(this);
     }
   }
 
-  GraphvizSvg.prototype.setupNodesEdges = function ($el, isNode) {
-    var that = this
-    var options = this.options
+  setupNodesEdges($el, isNode) {
+    const options = this.options;
 
     // save the colors of the paths, ellipses and polygons
     $el.find('polygon, ellipse, path').each(function () {
-      var $this = $(this)
+      const $this = $(this);
       // save original colors
       $this.data('graphviz.svg.color', {
         fill: $this.attr('fill'),
         stroke: $this.attr('stroke')
-
-      })
+      });
 
       // shrink it if it's a node
       if (isNode && options.shrink) {
-        that.scaleNode($this)
+        this.scaleNode($this);
       }
-    })
+    });
 
     // save the node name and check if theres a comment above; save it
-    var $title = $el.children('title')
+    const $title = $el.children('title');
     if ($title[0]) {
       // remove any compass points:
-      var title = $title.text().replace(/:[snew][ew]?/g,'')
-      $el.attr('data-name', title)
-      $title.remove()
+      const title = $title.text().replace(/:[snew][ew]?/g, '');
+      $el.attr('data-name', title);
+      $title.remove();
       if (isNode) {
-        this._nodesByName[title] = $el[0]
+        this._nodesByName[title] = $el[0];
       } else {
-        this._edgesByName[title] = $el[0]
+        this._edgesByName[title] = $el[0];
       }
       // without a title we can't tell if its a user comment or not
-      var previousSibling = $el[0].previousSibling
+      let previousSibling = $el[0].previousSibling;
       while (previousSibling && previousSibling.nodeType != 8) {
-        previousSibling = previousSibling.previousSibling
+        previousSibling = previousSibling.previousSibling;
       }
       if (previousSibling != null && previousSibling.nodeType == 8) {
-        var htmlDecode = function (input) {
-          var e = document.createElement('div')
-          e.innerHTML = input
-          return e.childNodes[0].nodeValue
-        }
-        var value = htmlDecode(previousSibling.nodeValue.trim())
+        const htmlDecode = function (input) {
+          const e = document.createElement('div');
+          e.innerHTML = input;
+          return e.childNodes[0].nodeValue;
+        };
+        const value = htmlDecode(previousSibling.nodeValue.trim());
         if (value != title) {
           // user added comment
-          $el.attr('data-comment', value)
+          $el.attr('data-comment', value);
         }
       }
     }
 
     // remove namespace from a[xlink:title]
-    $el.children('a').filter(function () { return $(this).attr('xlink:title') }).each(function () {
-      var $a = $(this)
-      $a.attr('title', $a.attr('xlink:title'))
-      $a.removeAttr('xlink:title')
+    $el.children('a').filter((_idx, a) => $(a).attr('xlink:title')).each(function () {
+      const $a = $(this);
+      $a.attr('title', $a.attr('xlink:title'));
+      $a.removeAttr('xlink:title');
       if (options.tooltips) {
-        options.tooltips.init.call(this, that.$element)
+        options.tooltips.init.call(this, this.$element);
       }
-    })
+    });
   }
 
-  GraphvizSvg.prototype.setupZoom = function() {
-    var that = this
-    var $element = this.$element
-    var $svg = this.$svg
-    this.zoom = {width: $svg.attr('width'), height: $svg.attr('height'), percentage: null }
-    this.scaleView(100.0)
-    $element.mousewheel(function (evt) {
-        if (evt.shiftKey) {
-          var percentage = that.zoom.percentage
-          percentage -= evt.deltaY * evt.deltaFactor
-          if (percentage < 100.0) {
-            percentage = 100.0
-          }
-          // get pointer offset in view
-          // ratio offset within svg
-          var dx = evt.pageX - $svg.offset().left
-          var dy = evt.pageY - $svg.offset().top
-          var rx = dx / $svg.width()
-          var ry = dy / $svg.height()
-
-          // offset within frame ($element)
-          var px = evt.pageX - $element.offset().left
-          var py = evt.pageY - $element.offset().top
-
-          that.scaleView(percentage)
-          // scroll so pointer is still in same place
-          $element.scrollLeft((rx * $svg.width()) + 0.5 - px)
-          $element.scrollTop((ry * $svg.height()) + 0.5 - py)
-          return false // stop propogation
+  setupZoom() {
+    const $element = this.$element;
+    const $svg = this.$svg;
+    this.zoom = { width: $svg.attr('width'), height: $svg.attr('height'), percentage: null };
+    this.scaleView(100.0);
+    $element.on('mousewheel', function (evt) {
+      if (evt.shiftKey) {
+        let percentage = this.zoom.percentage;
+        percentage -= evt.deltaY * evt.deltaFactor;
+        if (percentage < 100.0) {
+          percentage = 100.0;
         }
-      })
+        // get pointer offset in view
+        // ratio offset within svg
+        const dx = evt.pageX - $svg.offset().left;
+        const dy = evt.pageY - $svg.offset().top;
+        const rx = dx / $svg.width();
+        const ry = dy / $svg.height();
+
+        // offset within frame ($element)
+        const px = evt.pageX - $element.offset().left;
+        const py = evt.pageY - $element.offset().top;
+
+        this.scaleView(percentage);
+        // scroll so pointer is still in same place
+        $element.scrollLeft((rx * $svg.width()) + 0.5 - px);
+        $element.scrollTop((ry * $svg.height()) + 0.5 - py);
+        return false; // stop propogation
+      }
+    });
   }
 
-  GraphvizSvg.prototype.scaleView = function(percentage) {
-    var that = this
-    var $svg = this.$svg
-    $svg.attr('width', percentage + '%')
-    $svg.attr('height', percentage + '%')
-    this.zoom.percentage = percentage
+  scaleView(percentage) {
+    const $svg = this.$svg;
+    $svg.attr('width', percentage + '%');
+    $svg.attr('height', percentage + '%');
+    this.zoom.percentage = percentage;
     // now callback to update tooltip position
-    var $everything = this.$nodes.add(this.$edges)
-    $everything.children('a[title]').each(function () {
-      that.options.tooltips.update.call(this)
-    })
+    const $everything = this.$nodes.add(this.$edges);
+    $everything.children('a[title]').each((_idx, el) => {
+      this.options.tooltips.update.call(el);
+    });
   }
 
-  GraphvizSvg.prototype.scaleNode = function($node) {
-    var dx = this.options.shrink.x
-    var dy = this.options.shrink.y
-    var tagName = $node.prop('tagName')
-    if (tagName == 'ellipse') {
-      $node.attr('rx', parseFloat($node.attr('rx')) - dx)
-      $node.attr('ry', parseFloat($node.attr('ry')) - dy)
-    } else if (tagName == 'polygon') {
+  scaleNode($node) {
+    const dx = this.options.shrink.x;
+    const dy = this.options.shrink.y;
+    const tagName = $node.prop('tagName');
+    if (tagName === 'ellipse') {
+      $node.attr('rx', parseFloat($node.attr('rx')) - dx);
+      $node.attr('ry', parseFloat($node.attr('ry')) - dy);
+    } else if (tagName === 'polygon') {
       // this is more complex - we need to scale it manually
-      var bbox = $node[0].getBBox()
-      var cx = bbox.x + (bbox.width / 2)
-      var cy = bbox.y + (bbox.height / 2)
-      var pts = $node.attr('points').split(' ')
-      var points = '' // new value
-      for (var i in pts) {
-        var xy = pts[i].split(',')
-        var ox = parseFloat(xy[0])
-        var oy = parseFloat(xy[1])
+      const bbox = $node[0].getBBox();
+      const cx = bbox.x + (bbox.width / 2);
+      const cy = bbox.y + (bbox.height / 2);
+      const pts = $node.attr('points').split(' ');
+      let points = ''; // new value
+      for (const i in pts) {
+        const xy = pts[i].split(',');
+        const ox = parseFloat(xy[0]);
+        const oy = parseFloat(xy[1]);
         points += (((cx - ox) / (bbox.width / 2) * dx) + ox) +
           ',' +
           (((cy - oy) / (bbox.height / 2) * dy) + oy) +
-          ' '
+          ' ';
       }
-      $node.attr('points', points)
+      $node.attr('points', points);
     }
   }
 
-  GraphvizSvg.prototype.convertToPx = function (val) {
-    var retval = val
-    if (typeof val == 'string') {
-      var end = val.length
-      var factor = 1.0
+  convertToPx(val) {
+    let retval = val;
+    if (typeof val === 'string') {
+      let end = val.length;
+      let factor = 1.0;
       if (val.endsWith('px')) {
-        end -= 2
+        end -= 2;
       } else if (val.endsWith('pt')) {
-        end -= 2
-        factor = GraphvizSvg.GVPT_2_PX
+        end -= 2;
+        factor = GraphvizSvg.GVPT_2_PX;
       }
-      retval = parseFloat(val.substring(0, end)) * factor
+      retval = parseFloat(val.substring(0, end)) * factor;
     }
-    return retval
+    return retval;
   }
 
-  GraphvizSvg.prototype.findEdge = function (nodeName, testEdge, $retval) {
-    var retval = []
-    for (var name in this._edgesByName) {
-      var match = testEdge(nodeName, name)
+  findEdge(nodeName, testEdge, $retval) {
+    const retval = [];
+    for (const name in this._edgesByName) {
+      const match = testEdge(nodeName, name);
       if (match) {
         if ($retval) {
-          $retval.push(this._edgesByName[name])
+          $retval.push(this._edgesByName[name]);
         }
-        retval.push(match)
+        retval.push(match);
       }
     }
-    return retval
+    return retval;
   }
 
-  GraphvizSvg.prototype.findLinked = function (node, includeEdges, testEdge, $retval) {
-    var that = this
-    var $node = $(node)
-    var $edges = null
+  findLinked(node, includeEdges, testEdge, $retval) {
+    const $node = $(node);
+    let $edges = null;
     if (includeEdges) {
-      $edges = $retval
+      $edges = $retval;
     }
-    var names = this.findEdge($node.attr('data-name'), testEdge, $edges)
-    for (var i in names) {
-      var n = this._nodesByName[names[i]]
+    const names = this.findEdge($node.attr('data-name'), testEdge, $edges);
+    for (const i in names) {
+      const n = this._nodesByName[names[i]];
       if (!$retval.is(n)) {
-        $retval.push(n)
-        that.findLinked(n, includeEdges, testEdge, $retval)
+        $retval.push(n);
+        this.findLinked(n, includeEdges, testEdge, $retval);
       }
     }
   }
 
-  GraphvizSvg.prototype.colorElement = function ($el, getColor) {
-    var bg = this.$element.css('background')
-    $el.find('polygon, ellipse, path').each(function() {
-      var $this = $(this)
-      var color = $this.data('graphviz.svg.color')
+  colorElement($el, getColor) {
+    const bg = this.$element.css('background');
+    $el.find('polygon, ellipse, path').each(function () {
+      const $this = $(this);
+      const color = $this.data('graphviz.svg.color');
       if (color.fill && $this.prop('tagName') != 'path') {
-        $this.attr('fill', getColor(color.fill, bg)) // don't set  fill if it's a path
+        $this.attr('fill', getColor(color.fill, bg)); // don't set  fill if it's a path
       }
       if (color.stroke) {
-        $this.attr('stroke', getColor(color.stroke, bg))
+        $this.attr('stroke', getColor(color.stroke, bg));
       }
-    })
+    });
   }
 
-  GraphvizSvg.prototype.restoreElement = function ($el) {
-    $el.find('polygon, ellipse, path').each(function() {
-      var $this = $(this)
-      var color = $this.data('graphviz.svg.color')
+  restoreElement($el) {
+    $el.find('polygon, ellipse, path').each(function () {
+      const $this = $(this);
+      const color = $this.data('graphviz.svg.color');
       if (color.fill) {
-        $this.attr('fill', color.fill) // don't set  fill if it's a path
+        $this.attr('fill', color.fill); // don't set  fill if it's a path
       }
       if (color.stroke) {
-        $this.attr('stroke', color.stroke)
+        $this.attr('stroke', color.stroke);
       }
-    })
+    });
   }
-
 
   // methods users can actually call
-  GraphvizSvg.prototype.nodes = function () {
-    return this.$nodes
+  nodes() {
+    return this.$nodes;
   }
 
-  GraphvizSvg.prototype.edges = function () {
-    return this.$edges
+  edges() {
+    return this.$edges;
   }
 
-  GraphvizSvg.prototype.nodesByName = function () {
-    return this._nodesByName
+  nodesByName() {
+    return this._nodesByName;
   }
 
-  GraphvizSvg.prototype.edgesByName = function () {
-    return this._edgesByName
+  edgesByName() {
+    return this._edgesByName;
   }
 
-  GraphvizSvg.prototype.linkedTo = function (node, includeEdges) {
-    var $retval = $()
-    this.findLinked(node, includeEdges, function (nodeName, edgeName) {
-      var other = null;
-      var match = '->' + nodeName
+  linkedTo(node, includeEdges) {
+    const $retval = $();
+    this.findLinked(node, includeEdges, (nodeName, edgeName) => {
+      let other = null;
+      const match = '->' + nodeName;
       if (edgeName.endsWith(match)) {
         other = edgeName.substring(0, edgeName.length - match.length);
       }
       return other;
-    }, $retval)
-    return $retval
+    }, $retval);
+    return $retval;
   }
 
-  GraphvizSvg.prototype.linkedFrom = function (node, includeEdges) {
-    var $retval = $()
-    this.findLinked(node, includeEdges, function (nodeName, edgeName) {
-      var other = null;
-      var match = nodeName + '->'
+  linkedFrom(node, includeEdges) {
+    const $retval = $();
+    this.findLinked(node, includeEdges, (nodeName, edgeName) => {
+      let other = null;
+      const match = nodeName + '->';
       if (edgeName.startsWith(match)) {
         other = edgeName.substring(match.length);
       }
       return other;
-    }, $retval)
-    return $retval
+    }, $retval);
+    return $retval;
   }
 
-  GraphvizSvg.prototype.linked = function (node, includeEdges) {
-    var $retval = $()
-    this.findLinked(node, includeEdges, function (nodeName, edgeName) {
-      return '^' + name + '--(.*)$'
-    }, $retval)
-    this.findLinked(node, includeEdges, function (nodeName, edgeName) {
-      return '^(.*)--' + name + '$'
-    }, $retval)
-    return $retval
+  linked(node, includeEdges) {
+    const $retval = $();
+    this.findLinked(node, includeEdges, (nodeName, edgeName) => '^' + nodeName + '--(.*)$', $retval);
+    this.findLinked(node, includeEdges, (nodeName, edgeName) => '^(.*)--' + nodeName + '$', $retval);
+    return $retval;
   }
 
-  GraphvizSvg.prototype.tooltip = function ($elements, show) {
-    var that = this
-    var options = this.options
+  tooltip($elements, show) {
+    const options = this.options;
     $elements.each(function () {
       $(this).children('a[title]').each(function () {
         if (show) {
-          options.tooltips.show.call(this)
+          options.tooltips.show.call(this);
         } else {
-          options.tooltips.hide.call(this)
+          options.tooltips.hide.call(this);
         }
-      })
-    })
+      });
+    });
   }
 
-  GraphvizSvg.prototype.bringToFront = function ($elements) {
-    $elements.detach().appendTo(this.$graph)
+  bringToFront($elements) {
+    $elements.detach().appendTo(this.$graph);
   }
 
-  GraphvizSvg.prototype.sendToBack = function ($elements) {
+  sendToBack($elements) {
     if (this.$background.length) {
-      $element.insertAfter(this.$background)
+      $elements.insertAfter(this.$background);
     } else {
-      $elements.detach().prependTo(this.$graph)
+      $elements.detach().prependTo(this.$graph);
     }
   }
 
-  GraphvizSvg.prototype.highlight = function ($nodesEdges, tooltips) {
-    var that = this
-    var options = this.options
-    var $everything = this.$nodes.add(this.$edges)
+  highlight($nodesEdges, tooltips) {
+    const options = this.options;
+    const $everything = this.$nodes.add(this.$edges);
     if ($nodesEdges && $nodesEdges.length > 0) {
       // create set of all other elements and dim them
-      $everything.not($nodesEdges).each(function () {
-        that.colorElement($(this), options.highlight.unselected)
-        that.tooltip($(this))
-      })
-      $nodesEdges.each(function () {
-        that.colorElement($(this), options.highlight.selected)
-      })
+      $everything.not($nodesEdges).each((_idx, elem) => {
+        this.colorElement($(elem), options.highlight.unselected);
+        this.tooltip($(elem));
+      });
+      $nodesEdges.each((_, elem) => {
+        this.colorElement($(elem), options.highlight.selected);
+      });
       if (tooltips) {
-        this.tooltip($nodesEdges, true)
+        this.tooltip($nodesEdges, true);
       }
     } else {
-      $everything.each(function () {
-        that.restoreElement($(this))
-      })
-      this.tooltip($everything)
+      $everything.each((_idx, elem) => {
+        this.restoreElement($(elem));
+      });
+      this.tooltip($everything);
     }
   }
 
-  GraphvizSvg.prototype.destroy = function () {
-    var that = this
-    this.hide(function () {
-      that.$element.off('.' + that.type).removeData(that.type)
-    })
+  destroy() {
+    this.hide(() => {
+      this.$element.off('.' + this.type).removeData(this.type);
+    });
   }
+}
 
+// Export the module as default
+export default function Plugin(option) {
+  this.each(function () {
+    const $this = $(this);
+    let data = $this.data('graphviz.svg');
+    const options = typeof option === 'object' && option;
 
-  // GRAPHVIZSVG PLUGIN DEFINITION
-  // =============================
-
-  function Plugin(option) {
-    return this.each(function () {
-      var $this   = $(this)
-      var data    = $this.data('graphviz.svg')
-      var options = typeof option == 'object' && option
-
-      if (!data && /destroy/.test(option)) return
-      if (!data) $this.data('graphviz.svg', (data = new GraphvizSvg(this, options)))
-      if (typeof option == 'string') data[option]()
-    })
-  }
-
-  var old = $.fn.graphviz
-
-  $.fn.graphviz             = Plugin
-  $.fn.graphviz.Constructor = GraphvizSvg
-
-
-  // GRAPHVIZ NO CONFLICT
-  // ====================
-
-  $.fn.graphviz.noConflict = function () {
-    $.fn.graphviz = old
-    return this
-  }
-
-}(jQuery)
+    if (!data && /destroy/.test(option)) return;
+    if (!data) {
+      $this.data('graphviz.svg', (data = new GraphvizSvg(this, options)));
+    }
+    if (typeof option === 'string') {
+      data[option]();
+    }
+  });
+}
